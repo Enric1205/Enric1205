@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Break-Even-Kalkulator: Was darf die Entwicklung kosten?</title>
+<style>
+:root { --bg:#f4f6f8; --card:#ffffff; --ink:#1a2332; --muted:#5b6b7f; --accent:#1f6feb; --ok:#1a7f37; --bad:#cf222e; --line:#e2e8f0; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; background:var(--bg); color:var(--ink); }
+header { background:#0d1b2e; color:#fff; padding:20px 24px; }
+header h1 { margin:0 0 4px; font-size:20px; }
+header p { margin:0; color:#b8c4d4; font-size:13px; max-width:900px; }
+main { max-width:1120px; margin:20px auto; padding:0 16px 40px; display:grid; grid-template-columns:400px 1fr; gap:16px; align-items:start; }
+@media (max-width:940px){ main { grid-template-columns:1fr; } }
+.card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; }
+.card h2 { font-size:15px; margin:0 0 12px; }
+.card h3 { font-size:13px; margin:16px 0 8px; color:var(--muted); }
+fieldset { border:1px solid var(--line); border-radius:8px; margin:0 0 12px; padding:10px 12px; }
+legend { font-size:12px; color:var(--muted); padding:0 6px; }
+label.f { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted); margin-bottom:8px; }
+label.f:last-child { margin-bottom:0; }
+input[type=number], select { width:100%; padding:7px 8px; border:1px solid var(--line); border-radius:6px; font-size:14px; color:var(--ink); background:#fff; }
+input:focus, select:focus { outline:2px solid var(--accent); outline-offset:-1px; }
+.row { display:flex; gap:8px; }
+.row > * { flex:1; min-width:0; }
+.radio { display:flex; gap:6px; align-items:center; font-size:13px; margin:4px 0; color:var(--ink); }
+.kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; margin-bottom:14px; }
+.kpi { border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
+.kpi .l { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+.kpi .v { font-size:19px; font-weight:700; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.kpi .s { font-size:11px; color:var(--muted); margin-top:2px; }
+.kpi.ok .v { color:var(--ok); }
+.kpi.bad .v { color:var(--bad); }
+#ampel { border-radius:8px; padding:10px 12px; font-weight:600; font-size:14px; margin-bottom:14px; }
+#ampel.ok { background:#e6f4ea; color:var(--ok); border:1px solid #b7dfc2; }
+#ampel.bad { background:#fdecec; color:var(--bad); border:1px solid #f5c2c7; }
+#ampel.warn { background:#fff7e0; color:#9a6700; border:1px solid #f0dfae; }
+#chartWrap svg { width:100%; height:auto; display:block; }
+table { width:100%; border-collapse:collapse; font-size:12.5px; }
+th, td { text-align:right; padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+th:first-child, td:first-child { text-align:left; }
+th { color:var(--muted); font-weight:600; font-size:10.5px; text-transform:uppercase; }
+tbody tr.be td { font-weight:700; background:#eef4ff; }
+.hinweis { font-size:12px; color:var(--muted); margin-top:10px; line-height:1.5; }
+</style>
+</head>
+<body>
+<header>
+<h1>Break-Even-Kalkulator: Was darf die Entwicklung kosten?</h1>
+<p>Berechnet die maximal zulässigen Entwicklungskosten (in € und Personentagen) aus dem kumulierten Deckungsbeitrag über den Betrachtungszeitraum — unter Berücksichtigung von Produkt-/Herstellungskosten pro Stück, Verkaufspreis, verkauften Einheiten pro Jahr, optionalem Zielgewinn und Kalkulationszins.</p>
+</header>
+<main>
+<section class="card">
+<h2>Eingaben</h2>
+<fieldset>
+<legend>Entwicklungsaufwand</legend>
+<label class="radio"><input type="radio" name="modusAufwand" value="aufwand" checked> Aufwandsbasiert: Personentage × Tagessatz</label>
+<label class="radio"><input type="radio" name="modusAufwand" value="direkt"> Direkt als Budget in €</label>
+<div id="blockAufwand">
+<div class="row">
+<label class="f">Personentage<input type="number" id="pt" value="400" min="0" step="1"></label>
+<label class="f">Tagessatz (€)<input type="number" id="tagessatz" value="800" min="0" step="10"></label>
+</div>
+<label class="f">Externe Kosten (Prototypen, Material, Tests, Agenturen) (€)<input type="number" id="extern" value="50000" min="0" step="1000"></label>
+</div>
+<div id="blockDirekt" hidden>
+<label class="f">Entwicklungsbudget gesamt (€)<input type="number" id="devDirekt" value="300000" min="0" step="1000"></label>
+</div>
+</fieldset>
+<fieldset>
+<legend>Produkt &amp; Markt</legend>
+<div class="row">
+<label class="f">Verkaufspreis pro Stück (€)<input type="number" id="preis" value="120" min="0" step="0.5"></label>
+<label class="f">Variable Produkt-/Herstellungskosten pro Stück (€)<input type="number" id="cVar" value="70" min="0" step="0.5"></label>
+</div>
+<label class="f">Sonstige fixe Kosten pro Jahr (Marketing, Overhead …) (€)<input type="number" id="fFix" value="20000" min="0" step="1000"></label>
+<label class="radio"><input type="radio" name="modusMenge" value="konstant" checked> Konstante verkaufte Einheiten pro Jahr</label>
+<label class="radio"><input type="radio" name="modusMenge" value="wachstum"> Startmenge mit jährlichem Wachstum</label>
+<div class="row" id="blockKonstant">
+<label class="f">Einheiten pro Jahr<input type="number" id="qKonstant" value="2000" min="0" step="10"></label>
+</div>
+<div id="blockWachstum" hidden>
+<div class="row">
+<label class="f">Einheiten im 1. Jahr<input type="number" id="qStart" value="1500" min="0" step="10"></label>
+<label class="f">Wachstum pro Jahr (%)<input type="number" id="wachstum" value="10" step="1"></label>
+</div>
+</div>
+<label class="f">Betrachtungszeitraum (Jahre)<input type="number" id="jahre" value="5" min="1" max="30" step="1"></label>
+</fieldset>
+<fieldset>
+<legend>Ziel &amp; Zins</legend>
+<label class="f">Zielvorgabe
+<select id="zielModus">
+<option value="none" selected>Nur Break-Even (kein Zielgewinn)</option>
+<option value="abs">Zielgewinn gesamt (€)</option>
+<option value="marge">Zielmarge (% vom Umsatz)</option>
+</select>
+</label>
+<label class="f" id="zielWertRow" hidden><span id="zielWertLabel">Zielgewinn (€)</span><input type="number" id="zielWert" value="0" step="1000"></label>
+<label class="f">Kalkulationszinssatz (% p.a., 0 = nominal)<input type="number" id="zins" value="0" min="0" max="30" step="0.5"></label>
+</fieldset>
+<p class="hinweis">Formel: Max. Entwicklungskosten = Σ (Verkaufspreis − variable Kosten) × Einheiten − fixe Jahreskosten − Zielgewinn, über alle Jahre (bei Zinssatz &gt; 0 barwertig). Break-Even-Menge = (Entwicklungskosten + Zielgewinn + fixe Kosten gesamt) ÷ Deckungsbeitrag pro Stück.</p>
+</section>
+<section class="card">
+<h2>Ergebnis</h2>
+<div id="ampel" class="ok"></div>
+<div class="kpis">
+<div class="kpi ok" id="kMaxDev"><div class="l">Max. Entwicklungskosten</div><div class="v" id="vMaxDev">–</div><div class="s" id="sMaxDev">zulässiges Budget</div></div>
+<div class="kpi" id="kKDev"><div class="l">Geplante Entwicklungskosten</div><div class="v" id="vKDev">–</div><div class="s" id="sKDev">–</div></div>
+<div class="kpi" id="kPT"><div class="l">Max. Personentage</div><div class="v" id="vPT">–</div><div class="s" id="sPT">bei gegebenem Tagessatz</div></div>
+<div class="kpi" id="kBEJahr"><div class="l">Break-Even in Jahr</div><div class="v" id="vBEJahr">–</div><div class="s" id="sBEJahr">–</div></div>
+<div class="kpi"><div class="l">Break-Even-Menge gesamt</div><div class="v" id="vBEP">–</div><div class="s" id="sBEP">Einheiten</div></div>
+<div class="kpi"><div class="l">Deckungsbeitrag pro Stück</div><div class="v" id="vDB">–</div><div class="s" id="sDB">–</div></div>
+<div class="kpi" id="kErg"><div class="l">Ergebnis über Zeitraum</div><div class="v" id="vErg">–</div><div class="s" id="sErg">nach Entwicklungskosten</div></div>
+</div>
+<h3>Kumulierter Deckungsbeitrag vs. Entwicklungskosten</h3>
+<div id="chartWrap"></div>
+<h3>Jahresverlauf</h3>
+<table>
+<thead><tr><th>Jahr</th><th>Einheiten</th><th>Umsatz</th><th>Var. Kosten</th><th>Fixe Kosten</th><th>Deckungsbeitrag</th><th>Kum. Deckungsbeitrag</th><th>Kum. Gewinn n. Entw.</th></tr></thead>
+<tbody id="tbody"></tbody>
+</table>
+<p class="hinweis" id="basisHinweis"></p>
+</section>
+</main>
+<script>
+const eurFmt = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+const numFmt = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+const compactFmt = new Intl.NumberFormat('de-DE', { notation: 'compact', maximumFractionDigits: 1 });
+function fmtEUR(x) { return eurFmt.format(x); }
+function fmtNum(x) { return numFmt.format(Math.round(x)); }
+function kurz(v) { return compactFmt.format(v) + ' €'; }
+
+function berechne(e) {
+  const kDev = e.modusAufwand === 'direkt' ? e.devDirekt : e.pt * e.tagessatz + e.extern;
+  const db = e.preis - e.cVar;
+  const n = e.jahre;
+  const i = e.zins / 100;
+  const barwertBasis = i > 0;
+  if (db <= 0) {
+    return { fehler: 'Deckungsbeitrag pro Stück ist ' + fmtEUR(db) + ' (Verkaufspreis ' + fmtEUR(e.preis) + ' abzüglich variable Kosten ' + fmtEUR(e.cVar) + '). Damit ist kein Break-Even möglich — Preis oder Kosten anpassen.', kDev: kDev, db: db };
+  }
+  const jahreArr = [];
+  let kum = 0, kumNom = 0, kumUmsatz = 0;
+  for (let t = 1; t <= n; t++) {
+    const q = e.modusMenge === 'konstant' ? e.qKonstant : e.qStart * Math.pow(1 + e.wachstum / 100, t - 1);
+    const umsatz = q * e.preis;
+    const varK = q * e.cVar;
+    const deckung = q * db - e.fFix;
+    kumUmsatz += umsatz;
+    kumNom += deckung;
+    kum += deckung / Math.pow(1 + i, t);
+    jahreArr.push({ jahr: t, q: q, umsatz: umsatz, varK: varK, fix: e.fFix, deckung: deckung, kum: kum, gewinn: kum - kDev });
+  }
+  let ziel = 0;
+  if (e.zielModus === 'abs') ziel = e.zielWert;
+  if (e.zielModus === 'marge') ziel = e.zielWert / 100 * kumUmsatz;
+  const maxDev = kum - ziel;
+  const puffer = maxDev - kDev;
+  const ergebnis = kum - kDev;
+  let beJahr = null;
+  for (const j of jahreArr) { if (j.kum >= kDev) { beJahr = j.jahr; break; } }
+  const kumFix = e.fFix * n;
+  const beMengeGesamt = (kDev + ziel + kumFix) / db;
+  const beMengeProJahr = e.modusMenge === 'konstant' ? beMengeGesamt / n : null;
+  const maxPT = e.modusAufwand === 'aufwand' && e.tagessatz > 0 ? Math.max(0, (maxDev - e.extern) / e.tagessatz) : null;
+  return { fehler: null, kDev: kDev, db: db, jahreArr: jahreArr, kum: kum, kumNom: kumNom, kumUmsatz: kumUmsatz, ziel: ziel, maxDev: maxDev, puffer: puffer, ergebnis: ergebnis, beJahr: beJahr, beMengeGesamt: beMengeGesamt, beMengeProJahr: beMengeProJahr, maxPT: maxPT, barwertBasis: barwertBasis, n: n, modusAufwand: e.modusAufwand, extern: e.extern, tagessatz: e.tagessatz, pt: e.pt };
+}
+
+if (typeof document !== 'undefined') {
+  function sammle() {
+    const g = id => { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? 0 : v; };
+    const val = id => document.getElementById(id).value;
+    const radio = name => { const el = document.querySelector('input[name="' + name + '"]:checked'); return el ? el.value : ''; };
+    return {
+      modusAufwand: radio('modusAufwand'),
+      devDirekt: g('devDirekt'),
+      pt: g('pt'), tagessatz: g('tagessatz'), extern: g('extern'),
+      preis: g('preis'), cVar: g('cVar'), fFix: g('fFix'),
+      modusMenge: radio('modusMenge'), qKonstant: g('qKonstant'), qStart: g('qStart'), wachstum: g('wachstum'),
+      jahre: Math.min(30, Math.max(1, Math.round(g('jahre')) || 1)),
+      zielModus: val('zielModus'), zielWert: g('zielWert'),
+      zins: g('zins')
+    };
+  }
+  function setVisible(id, vis) { document.getElementById(id).hidden = !vis; }
+  function zeichneChart(res) {
+    const W = 680, H = 210, padL = 60, padB = 26, padT = 14, padR = 10;
+    const data = res.jahreArr.map(j => j.kum);
+    const maxV = Math.max.apply(null, data.concat([res.kDev, 1]));
+    const n = data.length;
+    const bw = (W - padL - padR) / n;
+    let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img">';
+    for (let gI = 0; gI <= 4; gI++) {
+      const y = padT + (H - padT - padB) * (1 - gI / 4);
+      s += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y + '" stroke="#e2e8f0"/>';
+      s += '<text x="' + (padL - 6) + '" y="' + (y + 4) + '" text-anchor="end" font-size="10" fill="#5b6b7f">' + kurz(maxV * gI / 4) + '</text>';
+    }
+    data.forEach(function (v, idx) {
+      const x = padL + idx * bw + bw * 0.15;
+      const h = (H - padT - padB) * (v / maxV);
+      const y = H - padB - h;
+      s += '<rect x="' + x + '" y="' + y + '" width="' + (bw * 0.7) + '" height="' + h + '" fill="#1f6feb" opacity="0.85"><title>Jahr ' + (idx + 1) + ': ' + fmtEUR(v) + '</title></rect>';
+      s += '<text x="' + (x + bw * 0.35) + '" y="' + (H - padB + 15) + '" text-anchor="middle" font-size="10" fill="#5b6b7f">' + (idx + 1) + '</text>';
+    });
+    const yDev = H - padB - (H - padT - padB) * (res.kDev / maxV);
+    s += '<line x1="' + padL + '" y1="' + yDev + '" x2="' + (W - padR) + '" y2="' + yDev + '" stroke="#cf222e" stroke-width="2" stroke-dasharray="6 4"/>';
+    s += '<text x="' + (W - padR - 4) + '" y="' + (yDev - 6) + '" text-anchor="end" font-size="10" fill="#cf222e">Entwicklungskosten ' + kurz(res.kDev) + '</text>';
+    s += '</svg>';
+    document.getElementById('chartWrap').innerHTML = s;
+  }
+  function aktualisiere() {
+    const e = sammle();
+    setVisible('blockDirekt', e.modusAufwand === 'direkt');
+    setVisible('blockAufwand', e.modusAufwand !== 'direkt');
+    setVisible('blockKonstant', e.modusMenge === 'konstant');
+    setVisible('blockWachstum', e.modusMenge !== 'konstant');
+    const zRow = e.zielModus !== 'none';
+    setVisible('zielWertRow', zRow);
+    if (zRow) document.getElementById('zielWertLabel').textContent = e.zielModus === 'marge' ? 'Zielmarge (% vom Umsatz)' : 'Zielgewinn gesamt (€)';
+    const res = berechne(e);
+    const ampel = document.getElementById('ampel');
+    if (res.fehler) {
+      ampel.className = 'warn';
+      ampel.textContent = res.fehler;
+      document.getElementById('chartWrap').innerHTML = '';
+      document.getElementById('tbody').innerHTML = '';
+      return;
+    }
+    ampel.className = res.puffer >= 0 ? 'ok' : 'bad';
+    ampel.textContent = res.puffer >= 0
+      ? 'Break-Even erreichbar: Die Entwicklung darf bis zu ' + fmtEUR(res.maxDev) + ' kosten — geplant sind ' + fmtEUR(res.kDev) + ' (Puffer ' + fmtEUR(res.puffer) + ').'
+      : 'Nicht wirtschaftlich: Die Entwicklung dürfte max. ' + fmtEUR(res.maxDev) + ' kosten — geplant sind ' + fmtEUR(res.kDev) + ' (Fehlbetrag ' + fmtEUR(-res.puffer) + ').';
+    document.getElementById('vMaxDev').textContent = fmtEUR(res.maxDev);
+    document.getElementById('sMaxDev').textContent = res.ziel > 0 ? 'nach Zielgewinn ' + fmtEUR(res.ziel) : 'kumulierter Deckungsbeitrag';
+    document.getElementById('vKDev').textContent = fmtEUR(res.kDev);
+    document.getElementById('sKDev').textContent = res.modusAufwand === 'aufwand' ? fmtNum(res.pt) + ' PT × ' + fmtEUR(res.tagessatz) + ' + ' + fmtEUR(res.extern) + ' extern' : 'Direktbudget';
+    document.getElementById('vPT').textContent = res.maxPT !== null ? fmtNum(res.maxPT) + ' PT' : '–';
+    document.getElementById('sPT').textContent = res.maxPT !== null ? 'bei ' + fmtEUR(res.tagessatz) + '/Tag + ' + fmtEUR(res.extern) + ' extern' : 'nur im Direkt-Modus bzw. ohne Tagessatz';
+    document.getElementById('vBEJahr').textContent = res.beJahr !== null ? 'Jahr ' + res.beJahr : 'nicht im Zeitraum';
+    document.getElementById('sBEJahr').textContent = res.barwertBasis ? 'barwertig, nach ' + res.n + ' Jahren kum. ' + fmtEUR(res.kum) : 'nach ' + res.n + ' Jahren kum. ' + fmtEUR(res.kum);
+    document.getElementById('vBEP').textContent = fmtNum(res.beMengeGesamt);
+    document.getElementById('sBEP').textContent = res.beMengeProJahr !== null ? '≈ ' + fmtNum(res.beMengeProJahr) + ' Einheiten/Jahr' : 'Einheiten über ' + res.n + ' Jahre';
+    document.getElementById('vDB').textContent = fmtEUR(res.db);
+    document.getElementById('sDB').textContent = 'Preis ' + fmtEUR(e.preis) + ' − var. Kosten ' + fmtEUR(e.cVar);
+    const erg = document.getElementById('kErg');
+    erg.className = 'kpi ' + (res.ergebnis >= 0 ? 'ok' : 'bad');
+    document.getElementById('vErg').textContent = fmtEUR(res.ergebnis);
+    document.getElementById('sErg').textContent = res.barwertBasis ? 'Barwert über ' + res.n + ' Jahre' : 'nominal über ' + res.n + ' Jahre';
+    zeichneChart(res);
+    let rows = '';
+    res.jahreArr.forEach(function (j) {
+      rows += '<tr' + (res.beJahr === j.jahr ? ' class="be"' : '') + '><td>' + j.jahr + '</td><td>' + fmtNum(j.q) + '</td><td>' + fmtEUR(j.umsatz) + '</td><td>' + fmtEUR(j.varK) + '</td><td>' + fmtEUR(j.fix) + '</td><td>' + fmtEUR(j.deckung) + '</td><td>' + fmtEUR(j.kum) + '</td><td>' + fmtEUR(j.gewinn) + '</td></tr>';
+    });
+    document.getElementById('tbody').innerHTML = rows;
+    document.getElementById('basisHinweis').textContent = res.barwertBasis
+      ? 'Alle kumulierten Werte sind Barwerte mit ' + e.zins + ' % p.a. (nominaler kumulierter Deckungsbeitrag: ' + fmtEUR(res.kumNom) + ', nominaler Umsatz: ' + fmtEUR(res.kumUmsatz) + ').'
+      : 'Nominal gerechnet (Zinssatz 0 %). Kumulierter Umsatz: ' + fmtEUR(res.kumUmsatz) + '.';
+  }
+  document.addEventListener('input', aktualisiere);
+  document.addEventListener('change', aktualisiere);
+  aktualisiere();
+}
+</script>
+</body>
+</html>
